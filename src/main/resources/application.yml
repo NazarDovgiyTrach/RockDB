@@ -1,0 +1,4 @@
+rocksDB:
+  overwrite-existing: true
+  database:
+   path: rocks-db
