@@ -36,7 +36,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, InputSt
     private Options options;
 
     public RocksDBRepositoryImpl(Options options, @Value("${rocksDB.database.path:rocks-db}") String dbDir,
-                                 @Value("${rocksDB.database.overwrite-existing:true}") boolean overwriteExisting) {
+                                 @Value("${rocksDB.overwrite-existing:true}") boolean overwriteExisting) {
         this.options = options;
         this.overwriteExisting = overwriteExisting;
         this.dbDir = dbDir;
@@ -47,8 +47,8 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, InputSt
      * The isolation level is <b>Read Committed</b>.
      * <br/>If <u>overwriteExisting</u> mode disabled(enable by default) entries will not be stored if passed key exists.
      * */
-    @Override
-    public void save(String key, InputStream value) {
+
+    public void transactionalSave(String key, InputStream value) {
         try (TransactionDBOptions transactionDBOptions = new TransactionDBOptions();
                 TransactionDB transactionDB = TransactionDB.open(options, transactionDBOptions, dbDir);
                 Transaction transaction = transactionDB.beginTransaction(new WriteOptions());
@@ -60,6 +60,22 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, InputSt
             }
             transaction.put(key.getBytes(), IOUtils.toByteArray(value));
             transaction.commit();
+            LOG.info("Entry with key:{} successfully saved to RocksDB", key);
+        } catch (RocksDBException | IOException e) {
+            LOG.error("Error saving entry in RocksDB, cause: {}, message: {}", e.getCause(), e.getMessage());
+        }
+    }
+
+    @Override
+    public void save(String key, InputStream value) {
+        try (RocksDB rocksDB = RocksDB.open(options, dbDir)) {
+            if (!overwriteExisting && rocksDB.keyMayExist(key.getBytes(), null)) {
+                LOG.error(
+                        "Entry with the key: {} already exists, please choose another key or enable 'overwriteExisting' mode ",
+                        key);
+                return;
+            }
+            rocksDB.put(key.getBytes(), IOUtils.toByteArray(value));
             LOG.info("Entry with key:{} successfully saved to RocksDB", key);
         } catch (RocksDBException | IOException e) {
             LOG.error("Error saving entry in RocksDB, cause: {}, message: {}", e.getCause(), e.getMessage());

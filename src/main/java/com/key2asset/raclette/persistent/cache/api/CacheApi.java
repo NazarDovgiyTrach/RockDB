@@ -2,6 +2,7 @@ package com.key2asset.raclette.persistent.cache.api;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.key2asset.raclette.persistent.cache.store.KeyValueRepository;
+
 @Controller
 public class CacheApi {
 
@@ -34,7 +36,12 @@ public class CacheApi {
 
     @GetMapping("raclette/{key}")
     public void find(@PathVariable("key") String key, HttpServletResponse response) throws IOException {
-        IOUtils.copyLarge(rocksDB.find(key),response.getOutputStream());
+        InputStream inputStream = rocksDB.find(key);
+        if (Objects.isNull(inputStream)) {
+            response.setStatus(404);
+        } else
+            IOUtils.copyLarge(inputStream, response.getOutputStream());
+
     }
 
     @DeleteMapping("raclette/{key}")
